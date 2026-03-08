@@ -1,0 +1,29 @@
+services:
+  technitium-dns:
+    image: technitium/dns-server:latest
+    container_name: technitium-dns
+    hostname: technitium-dns
+    restart: unless-stopped
+
+    ports:
+      - "53:53/udp"
+      - "53:53/tcp"
+      - "127.0.0.1:5380:5380/tcp"
+
+    environment:
+      DNS_SERVER_DOMAIN: "dns.lab"
+      DNS_SERVER_ADMIN_PASSWORD: "CHANGE_ME_STRONG_PASSWORD"
+      DNS_SERVER_PREFER_IPV6: "false"
+      DNS_SERVER_FORWARDERS: "1.1.1.1,1.0.0.1,9.9.9.9,8.8.8.8"
+      DNS_SERVER_FORWARDER_PROTOCOL: "Udp"
+      TZ: "Europe/Helsinki"
+
+    volumes:
+      - ./config:/etc/dns
+
+    healthcheck:
+     test: ["CMD", "curl", "-f", "http://127.0.0.1:5380/"]
+     interval: 30s
+     timeout: 5s
+     retries: 5
+     start_period: 20s
