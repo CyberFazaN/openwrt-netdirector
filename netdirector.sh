@@ -2,7 +2,7 @@
 set -eu
 
 PROGRAM_NAME="netdirector"
-PROGRAM_VERSION="1.0.0"
+PROGRAM_VERSION="1.0.1"
 PROGRAM_AUTHOR="FazaN CyberSec <fazan@nullbyte.pro>"
 
 RULE_FILE="/etc/nftables.d/90-netdirector.nft"
