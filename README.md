@@ -7,11 +7,13 @@ It is intended for lab and analysis environments where traffic from client devic
 ## What it is useful for
 
 - redirect HTTP and HTTPS traffic to a transparent proxy
-- force DNS traffic to a dedicated DNS server
+- force DNS traffic to a dedicated DNS server[^dns]
 - block QUIC (`UDP/443`) to reduce HTTPS bypass paths
 - optionally block IPv6 when inspection is performed only over IPv4
 - apply rules to all clients or only selected hosts
 - save repeatable configurations as profiles
+
+[^dns]: DNS interception is disabled by default and must be enabled explicitly with `--dns on`.
 
 It is especially useful for devices on which it is difficult or impossible to configure traffic proxying, such as IoT devices, mobile apps, embedded systems, and closed appliances.
 
@@ -83,8 +85,7 @@ Options:
   --http on|off              Enable or disable HTTP interception
   --https on|off             Enable or disable HTTPS interception
   --dns on|off               Enable or disable DNS interception
-  --block-quic               Block UDP/443
-  --allow-quic               Do not block UDP/443
+  --quic ignore|block        UDP/443 handling mode
   --ipv6 ignore|block        IPv6 handling mode
   --verbose                  Enable verbose output
   -h, --help                 Show help
@@ -99,10 +100,11 @@ Enable redirection for all clients:
 netdirector on \
   --intercept-ip 192.168.30.2 \
   --intercept-port 8080 \
+  --dns on \
   --dns-ip 192.168.30.2 \
   --dns-port 53 \
   --iface br-lan \
-  --block-quic \
+  --quic block \
   --ipv6 block
 ```
 
@@ -112,6 +114,7 @@ Enable redirection for one client only:
 netdirector on \
   --intercept-ip 192.168.30.2 \
   --intercept-port 8080 \
+  --dns on \
   --dns-ip 192.168.30.2 \
   --dns-port 53 \
   --iface br-lan \
@@ -141,17 +144,29 @@ Typical profile contents:
 - interface
 - default flags
 
-Save a profile:
+Save a profile from an explicit configuration:
 
 ```
-netdirector save-profile lab
+netdirector save-profile lab \
+  --intercept-ip 192.168.30.2 \
+  --intercept-port 8080 \
+  --dns on \
+  --dns-ip 192.168.30.2 \
+  --dns-port 53 \
+  --iface br-lan \
+  --quic block
 ```
 
-Use a profile with additional overrides:
+Load a saved profile:
 
 ```
-netdirector on \
-  --profile lab \
+netdirector load-profile lab
+```
+
+Load a profile and override selected options, for example target clients:
+
+```
+netdirector load-profile lab \
   --client 192.168.30.101
 ```
 

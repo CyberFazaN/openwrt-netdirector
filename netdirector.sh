@@ -49,9 +49,9 @@ CLIENTS=""
 
 FORWARD_HTTP="1"
 FORWARD_HTTPS="1"
-FORWARD_DNS="1"
+FORWARD_DNS="0"
 
-BLOCK_QUIC="1"
+QUIC_MODE="ignore"
 IPV6_MODE="ignore"
 
 VERBOSE="0"
@@ -69,7 +69,7 @@ CLI_CLIENTS=""
 CLI_FORWARD_HTTP=""
 CLI_FORWARD_HTTPS=""
 CLI_FORWARD_DNS=""
-CLI_BLOCK_QUIC=""
+CLI_QUIC_MODE=""
 CLI_IPV6_MODE=""
 CLI_VERBOSE=""
 CLI_PROFILE_SAVE_NAME=""
@@ -130,8 +130,7 @@ Options:
   --http on|off              Enable or disable HTTP interception
   --https on|off             Enable or disable HTTPS interception
   --dns on|off               Enable or disable DNS interception
-  --block-quic               Block UDP/443
-  --allow-quic               Do not block UDP/443
+  --quic ignore|block        UDP/443 handling mode
   --ipv6 ignore|block        IPv6 handling mode
   --verbose                  Enable verbose output
   -h, --help                 Show help
@@ -141,15 +140,18 @@ Examples:
   $PROGRAM_NAME on \\
     --intercept-ip 192.168.30.2 \\
     --intercept-port 8080 \\
+    --dns on \\
     --dns-ip 192.168.30.2 \\
     --dns-port 53 \\
     --iface br-lan \\
-    --block-quic \\
+    --quic block \\
     --ipv6 block
 
   $PROGRAM_NAME on \\
     --intercept-ip 192.168.30.2 \\
     --intercept-port 8080 \\
+    --https off \\
+    --dns on \\
     --dns-ip 192.168.30.2 \\
     --dns-port 53 \\
     --iface br-lan \\
@@ -158,6 +160,7 @@ Examples:
   $PROGRAM_NAME save-profile burp-laptop \\
     --intercept-ip 192.168.30.2 \\
     --intercept-port 8080 \\
+    --dns on \\
     --dns-ip 192.168.30.2 \\
     --dns-port 53 \\
     --iface br-lan \\
@@ -268,7 +271,6 @@ normalize_flags() {
     FORWARD_HTTP="$(bool_to_int "$FORWARD_HTTP")" || die "Invalid value for HTTP flag"
     FORWARD_HTTPS="$(bool_to_int "$FORWARD_HTTPS")" || die "Invalid value for HTTPS flag"
     FORWARD_DNS="$(bool_to_int "$FORWARD_DNS")" || die "Invalid value for DNS flag"
-    BLOCK_QUIC="$(bool_to_int "$BLOCK_QUIC")" || die "Invalid value for QUIC flag"
 }
 
 normalize_config() {
@@ -281,6 +283,13 @@ normalize_config() {
             ;;
         *)
             die "Invalid IPV6_MODE: $IPV6_MODE"
+            ;;
+    esac
+    case "$QUIC_MODE" in
+        ignore|block)
+            ;;
+        *)
+            die "Invalid QUIC_MODE: $QUIC_MODE"
             ;;
     esac
 }
@@ -435,7 +444,7 @@ save_profile_file() {
         printf 'FORWARD_HTTPS="%s"\n' "$FORWARD_HTTPS"
         printf 'FORWARD_DNS="%s"\n' "$FORWARD_DNS"
         printf '\n'
-        printf 'BLOCK_QUIC="%s"\n' "$BLOCK_QUIC"
+        printf 'QUIC_MODE="%s"\n' "$QUIC_MODE"
         printf 'IPV6_MODE="%s"\n' "$IPV6_MODE"
     } > "$tmp_file" || {
         rm -f "$tmp_file"
@@ -497,7 +506,7 @@ write_metadata_header() {
     printf '# forward_http: %s\n' "$FORWARD_HTTP"
     printf '# forward_https: %s\n' "$FORWARD_HTTPS"
     printf '# forward_dns: %s\n' "$FORWARD_DNS"
-    printf '# block_quic: %s\n' "$BLOCK_QUIC"
+    printf '# quic_mode: %s\n' "$QUIC_MODE"
     printf '# ipv6_mode: %s\n' "$IPV6_MODE"
     printf '\n'
 }
@@ -637,7 +646,7 @@ emit_prerouting_https_rules() {
 }
 
 emit_prerouting_quic_rules() {
-    [ "$BLOCK_QUIC" = "1" ] || return 0
+    [ "$QUIC_MODE" = "block" ] || return 0
     emit_rule "udp dport 443 counter reject"
 }
 
@@ -652,7 +661,7 @@ emit_prerouting_ipv6_block_rules() {
         emit_rule "ip6 nexthdr tcp tcp dport 443 counter reject with icmpv6 type admin-prohibited"
     fi
 
-    if [ "$BLOCK_QUIC" = "1" ]; then
+    if [ "$QUIC_MODE" = "block" ]; then
         emit_rule "ip6 nexthdr udp udp dport 443 counter reject with icmpv6 type admin-prohibited"
     fi
 
@@ -829,7 +838,7 @@ show_runtime_status() {
         log_info "  forward_http: $(read_metadata_value "forward_http")"
         log_info "  forward_https: $(read_metadata_value "forward_https")"
         log_info "  forward_dns: $(read_metadata_value "forward_dns")"
-        log_info "  block_quic: $(read_metadata_value "block_quic")"
+        log_info "  quic_mode: $(read_metadata_value "quic_mode")"
         log_info "  ipv6_mode: $(read_metadata_value "ipv6_mode")"
     fi
 
@@ -861,9 +870,9 @@ set_defaults() {
 
     FORWARD_HTTP="1"
     FORWARD_HTTPS="1"
-    FORWARD_DNS="1"
+    FORWARD_DNS="0"
 
-    BLOCK_QUIC="1"
+    QUIC_MODE="ignore"
     IPV6_MODE="ignore"
 
     VERBOSE="0"
@@ -880,7 +889,7 @@ reset_cli_overrides() {
     CLI_FORWARD_HTTP=""
     CLI_FORWARD_HTTPS=""
     CLI_FORWARD_DNS=""
-    CLI_BLOCK_QUIC=""
+    CLI_QUIC_MODE=""
     CLI_IPV6_MODE=""
     CLI_VERBOSE=""
     CLI_PROFILE_SAVE_NAME=""
@@ -933,8 +942,8 @@ apply_cli_overrides() {
         FORWARD_DNS="$CLI_FORWARD_DNS"
     fi
 
-    if [ -n "$CLI_BLOCK_QUIC" ]; then
-        BLOCK_QUIC="$CLI_BLOCK_QUIC"
+    if [ -n "$CLI_QUIC_MODE" ]; then
+        QUIC_MODE="$CLI_QUIC_MODE"
     fi
 
     if [ -n "$CLI_IPV6_MODE" ]; then
@@ -972,7 +981,7 @@ print_effective_config() {
     log_info "  forward_http: $FORWARD_HTTP"
     log_info "  forward_https: $FORWARD_HTTPS"
     log_info "  forward_dns: $FORWARD_DNS"
-    log_info "  block_quic: $BLOCK_QUIC"
+    log_info "  quic_mode: $QUIC_MODE"
     log_info "  ipv6_mode: $IPV6_MODE"
     log_info "  verbose: $VERBOSE"
 }
@@ -1234,19 +1243,17 @@ parse_cli() {
                 CLI_FORWARD_DNS="$(parse_on_off_value "$2")" || usage_error "Invalid value for --dns: $2"
                 shift 2
                 ;;
-            --block-quic)
-                if [ -n "$CLI_BLOCK_QUIC" ] && [ "$CLI_BLOCK_QUIC" = "0" ]; then
-                    usage_error "--block-quic conflicts with --allow-quic"
-                fi
-                CLI_BLOCK_QUIC="1"
-                shift
-                ;;
-            --allow-quic)
-                if [ -n "$CLI_BLOCK_QUIC" ] && [ "$CLI_BLOCK_QUIC" = "1" ]; then
-                    usage_error "--allow-quic conflicts with --block-quic"
-                fi
-                CLI_BLOCK_QUIC="0"
-                shift
+            --quic)
+                [ "$#" -ge 2 ] || usage_error "Missing value for --quic"
+                case "$2" in
+                    ignore|block)
+                        CLI_QUIC_MODE="$2"
+                        ;;
+                    *)
+                        usage_error "Invalid value for --quic: $2"
+                        ;;
+                esac
+                shift 2
                 ;;
             --ipv6)
                 [ "$#" -ge 2 ] || usage_error "Missing value for --ipv6"
